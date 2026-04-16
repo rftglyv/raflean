@@ -314,13 +314,80 @@ function ResultsScreen({ items, onStartClean, onQuit }) {
         h(Text, { color: 'gray' }, cursorItem.command),
       ),
     ),
-    h(Box, { marginTop: 1 },
-      h(Text, { color: 'gray' },
-        '  ↑/↓ nav  space toggle  a all  n none  s safe-only  m safe+moderate  d dry-run  ⏎ clean  q quit',
+    h(Box, { marginTop: 1, flexDirection: 'column' },
+      h(Box, null,
+        h(Text, { color: 'cyan', bold: true }, '  [space]'),
+        h(Text, { color: 'gray' }, ' toggle   '),
+        h(Text, { color: 'cyan', bold: true }, '[↑/↓]'),
+        h(Text, { color: 'gray' }, ' move   '),
+        h(Text, { color: 'cyan', bold: true }, '[⏎]'),
+        h(Text, { color: 'gray' }, ' clean selected   '),
+        h(Text, { color: 'cyan', bold: true }, '[q]'),
+        h(Text, { color: 'gray' }, ' quit'),
+      ),
+      h(Box, null,
+        h(Text, { color: 'gray' }, '  presets: '),
+        h(Text, { color: 'cyan' }, '[a]'),
+        h(Text, { color: 'gray' }, ' all  '),
+        h(Text, { color: 'cyan' }, '[n]'),
+        h(Text, { color: 'gray' }, ' none  '),
+        h(Text, { color: 'cyan' }, '[s]'),
+        h(Text, { color: 'gray' }, ' safe-only  '),
+        h(Text, { color: 'cyan' }, '[m]'),
+        h(Text, { color: 'gray' }, ' safe+moderate  '),
+        h(Text, { color: 'cyan' }, '[d]'),
+        h(Text, { color: 'gray' }, ' dry-run toggle'),
       ),
     ),
     start > 0 && h(Text, { color: 'gray' }, `  … ${start} items above`),
     end < flatIndex.length && h(Text, { color: 'gray' }, `  … ${flatIndex.length - end} items below`),
+  );
+}
+
+// ─── Confirm screen ───────────────────────────────────────────────────────────
+
+function ConfirmScreen({ items, dryRun, onConfirm, onCancel }) {
+  const total = items.reduce((s, i) => s + (i.bytes || 0), 0);
+  const careful = items.filter((i) => i.risk === 'careful');
+
+  useInput((input, key) => {
+    if (key.return) onConfirm();
+    if (key.escape || input === 'q' || input === 'n') onCancel();
+  });
+
+  return h(Box, { flexDirection: 'column', marginTop: 1 },
+    h(Text, { bold: true, color: dryRun ? 'yellow' : 'cyan' },
+      `  ${dryRun ? '⚠  Dry-run preview' : '⚠  Confirm cleanup'}`,
+    ),
+    h(Newline),
+    h(Box, null,
+      h(Text, null, '  About to '),
+      h(Text, { bold: true, color: dryRun ? 'yellow' : 'red' }, dryRun ? 'preview ' : 'permanently delete '),
+      h(Text, { bold: true, color: 'cyan' }, `${items.length} item${items.length === 1 ? '' : 's'}`),
+      h(Text, null, ' — freeing '),
+      h(SizeText, { bytes: total }),
+    ),
+    careful.length > 0 && h(Box, { marginTop: 1, flexDirection: 'column' },
+      h(Text, { color: 'red', bold: true }, `  ⚠  Includes ${careful.length} "careful" item${careful.length === 1 ? '' : 's'}:`),
+      ...careful.slice(0, 5).map((it, i) =>
+        h(Box, { key: `c-${i}` },
+          h(Text, { color: 'red' }, '     • '),
+          h(Text, null, it.label),
+        ),
+      ),
+      careful.length > 5 && h(Text, { color: 'red' }, `     … and ${careful.length - 5} more`),
+    ),
+    dryRun && h(Box, { marginTop: 1 },
+      h(Text, { color: 'yellow' }, '  [DRY-RUN MODE] '),
+      h(Text, { color: 'gray' }, 'nothing will actually be deleted.'),
+    ),
+    h(Newline),
+    h(Box, null,
+      h(Text, { color: 'green', bold: true }, '  [⏎]'),
+      h(Text, { color: 'gray' }, dryRun ? ' run preview     ' : ' confirm + delete     '),
+      h(Text, { color: 'red', bold: true }, '[ESC/q/n]'),
+      h(Text, { color: 'gray' }, ' cancel, go back'),
+    ),
   );
 }
 
@@ -419,9 +486,15 @@ function App() {
       items,
       onStartClean: (picks, opts) => {
         setClean({ picks, dryRun: opts.dryRun });
-        setScreen('cleaning');
+        setScreen('confirm');
       },
       onQuit: () => exit(),
+    }),
+    screen === 'confirm' && clean && h(ConfirmScreen, {
+      items: clean.picks,
+      dryRun: clean.dryRun,
+      onConfirm: () => setScreen('cleaning'),
+      onCancel: () => { setClean(null); setScreen('results'); },
     }),
     screen === 'cleaning' && clean && h(CleanScreen, {
       items: clean.picks,

@@ -1,6 +1,6 @@
 {
   "name": "raflean",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Universal storage cleaner for developers — plain CLI + Ink TUI. Reclaim disk space across every dev-tool cache. Built by raffy with Claude.",
   "type": "module",
   "bin": {
