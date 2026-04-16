@@ -1,0 +1,60 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: bun-darwin-arm64
+            suffix: darwin-arm64
+          - os: macos-13
+            target: bun-darwin-x64
+            suffix: darwin-x64
+          - os: ubuntu-latest
+            target: bun-linux-x64
+            suffix: linux-x64
+          - os: ubuntu-latest
+            target: bun-linux-arm64
+            suffix: linux-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile || bun install
+
+      - name: build raflean (plain CLI)
+        run: bun build bin/raflean.js --compile --target=${{ matrix.target }} --outfile raflean-${{ matrix.suffix }}
+
+      - name: build raflean-ui (Ink TUI)
+        run: bun build bin/raflean-ui.js --compile --target=${{ matrix.target }} --outfile raflean-ui-${{ matrix.suffix }}
+
+      - name: sha256
+        run: |
+          shasum -a 256 raflean-${{ matrix.suffix }}    > raflean-${{ matrix.suffix }}.sha256    || sha256sum raflean-${{ matrix.suffix }}    > raflean-${{ matrix.suffix }}.sha256
+          shasum -a 256 raflean-ui-${{ matrix.suffix }} > raflean-ui-${{ matrix.suffix }}.sha256 || sha256sum raflean-ui-${{ matrix.suffix }} > raflean-ui-${{ matrix.suffix }}.sha256
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            raflean-${{ matrix.suffix }}
+            raflean-ui-${{ matrix.suffix }}
+            raflean-${{ matrix.suffix }}.sha256
+            raflean-ui-${{ matrix.suffix }}.sha256
+          generate_release_notes: true
+          draft: false
+          prerelease: false

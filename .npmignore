@@ -1,0 +1,12 @@
+.github/
+test/
+dist/
+docs/
+OSS-APPLICATION.md
+IDEAS.md
+Makefile
+*.log
+.DS_Store
+.env*
+.vscode/
+.idea/

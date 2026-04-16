@@ -1,0 +1,27 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile || bun install
+
+      - name: unit tests
+        run: bun test
+
+      - name: CLI smoke
+        run: |
+          bun run bin/raflean.js help
+          bun run bin/raflean.js diagnose --json --only=rust > /tmp/out.json
+          test -s /tmp/out.json

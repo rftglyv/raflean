@@ -1,0 +1,69 @@
+{
+  "name": "raflean",
+  "version": "2.0.0",
+  "description": "Universal storage cleaner for developers — plain CLI + Ink TUI. Reclaim disk space across every dev-tool cache. Built by raffy with Claude.",
+  "type": "module",
+  "bin": {
+    "raflean": "./bin/raflean.js",
+    "raflean-ui": "./bin/raflean-ui.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "cli": "node bin/raflean.js",
+    "ui": "node bin/raflean-ui.js",
+    "test": "bun test",
+    "build:cli": "bun build bin/raflean.js --compile --outfile dist/raflean",
+    "build:ui": "bun build bin/raflean-ui.js --compile --outfile dist/raflean-ui",
+    "build": "npm run build:cli && npm run build:ui",
+    "prepublishOnly": "npm test"
+  },
+  "keywords": [
+    "cli",
+    "tui",
+    "ink",
+    "cleaner",
+    "disk-space",
+    "storage",
+    "mac",
+    "macos",
+    "docker",
+    "npm",
+    "bun",
+    "pnpm",
+    "yarn",
+    "xcode",
+    "homebrew",
+    "developer-tools",
+    "devtools",
+    "raflean",
+    "raffy"
+  ],
+  "author": "raffy (rftglyv)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rftglyv/raflean.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rftglyv/raflean/issues"
+  },
+  "homepage": "https://github.com/rftglyv/raflean#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "os": ["darwin", "linux"],
+  "preferGlobal": true,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "ink": "^5.1.0",
+    "react": "^18.3.1",
+    "react-devtools-core": "^4.28.5"
+  }
+}
