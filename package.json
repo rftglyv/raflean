@@ -4,8 +4,8 @@
   "description": "Universal storage cleaner for developers — plain CLI + Ink TUI. Reclaim disk space across every dev-tool cache. Built by raffy with Claude.",
   "type": "module",
   "bin": {
-    "raflean": "./bin/raflean.js",
-    "raflean-ui": "./bin/raflean-ui.js"
+    "raflean": "bin/raflean.js",
+    "raflean-ui": "bin/raflean-ui.js"
   },
   "files": [
     "bin/",
@@ -56,7 +56,10 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "os": ["darwin", "linux"],
+  "os": [
+    "darwin",
+    "linux"
+  ],
   "preferGlobal": true,
   "publishConfig": {
     "access": "public"
