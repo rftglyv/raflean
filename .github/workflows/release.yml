@@ -11,24 +11,8 @@ permissions:
 
 jobs:
   build:
-    name: build ${{ matrix.target }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            target: bun-darwin-arm64
-            suffix: darwin-arm64
-          - os: macos-13
-            target: bun-darwin-x64
-            suffix: darwin-x64
-          - os: ubuntu-latest
-            target: bun-linux-x64
-            suffix: linux-x64
-          - os: ubuntu-latest
-            target: bun-linux-arm64
-            suffix: linux-arm64
-    runs-on: ${{ matrix.os }}
+    name: build darwin-arm64
+    runs-on: ubuntu-latest  # bun cross-compiles to darwin-arm64 from any host
     steps:
       - uses: actions/checkout@v4
 
@@ -39,23 +23,23 @@ jobs:
       - run: bun install --frozen-lockfile || bun install
 
       - name: build raflean (plain CLI)
-        run: bun build bin/raflean.js --compile --target=${{ matrix.target }} --outfile raflean-${{ matrix.suffix }}
+        run: bun build bin/raflean.js --compile --target=bun-darwin-arm64 --outfile raflean-darwin-arm64
 
       - name: build raflean-ui (Ink TUI)
-        run: bun build bin/raflean-ui.js --compile --target=${{ matrix.target }} --outfile raflean-ui-${{ matrix.suffix }}
+        run: bun build bin/raflean-ui.js --compile --target=bun-darwin-arm64 --outfile raflean-ui-darwin-arm64
 
       - name: sha256
         run: |
-          shasum -a 256 raflean-${{ matrix.suffix }}    > raflean-${{ matrix.suffix }}.sha256    || sha256sum raflean-${{ matrix.suffix }}    > raflean-${{ matrix.suffix }}.sha256
-          shasum -a 256 raflean-ui-${{ matrix.suffix }} > raflean-ui-${{ matrix.suffix }}.sha256 || sha256sum raflean-ui-${{ matrix.suffix }} > raflean-ui-${{ matrix.suffix }}.sha256
+          sha256sum raflean-darwin-arm64    > raflean-darwin-arm64.sha256
+          sha256sum raflean-ui-darwin-arm64 > raflean-ui-darwin-arm64.sha256
 
       - uses: softprops/action-gh-release@v2
         with:
           files: |
-            raflean-${{ matrix.suffix }}
-            raflean-ui-${{ matrix.suffix }}
-            raflean-${{ matrix.suffix }}.sha256
-            raflean-ui-${{ matrix.suffix }}.sha256
+            raflean-darwin-arm64
+            raflean-ui-darwin-arm64
+            raflean-darwin-arm64.sha256
+            raflean-ui-darwin-arm64.sha256
           generate_release_notes: true
           draft: false
           prerelease: false
@@ -72,7 +56,7 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      # No NPM_TOKEN — auth is via OIDC Trusted Publishing.
+      # No NPM_TOKEN — auth via OIDC Trusted Publishing.
       # Configure once at https://www.npmjs.com/package/raflean/access
       - name: npm publish (with provenance)
         run: npm publish --provenance --access public

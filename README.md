@@ -18,18 +18,39 @@ Two interfaces, one core:
 
 ## Quick start
 
-```bash
-# Run from GitHub — no install needed
-npx github:rftglyv/raflean                   # scan + report
-npx github:rftglyv/raflean clean --dry-run   # preview
-npx github:rftglyv/raflean clean --all       # clean all safe + moderate
+**Via npm / npx** (works on every platform with Node ≥ 18):
 
-# Or grab a prebuilt binary (macOS + Linux, no Node required)
-curl -L https://github.com/rftglyv/raflean/releases/latest/download/raflean-darwin-arm64 -o /usr/local/bin/raflean && chmod +x /usr/local/bin/raflean
-curl -L https://github.com/rftglyv/raflean/releases/latest/download/raflean-ui-darwin-arm64 -o /usr/local/bin/raflean-ui && chmod +x /usr/local/bin/raflean-ui
+```bash
+npx raflean                    # scan + report
+npx raflean clean --dry-run    # preview what would be deleted
+npx raflean clean --all        # clean all safe + moderate
+npx raflean-ui                 # rich interactive TUI
+
+# Or install globally:
+npm install -g raflean
 ```
 
-Once published to npm, `npx raflean` and `npm install -g raflean` will also work.
+**Via prebuilt binary** (Apple Silicon — M1/M2/M3/M4 — only):
+
+```bash
+curl -L https://github.com/rftglyv/raflean/releases/latest/download/raflean-darwin-arm64 \
+  -o /usr/local/bin/raflean && chmod +x /usr/local/bin/raflean
+curl -L https://github.com/rftglyv/raflean/releases/latest/download/raflean-ui-darwin-arm64 \
+  -o /usr/local/bin/raflean-ui && chmod +x /usr/local/bin/raflean-ui
+```
+
+**Intel Macs, Linux, or anything else** — compile from source (takes ~5 seconds with [Bun](https://bun.sh)):
+
+```bash
+git clone https://github.com/rftglyv/raflean && cd raflean
+bun install
+bun build bin/raflean.js    --compile --outfile raflean
+bun build bin/raflean-ui.js --compile --outfile raflean-ui
+sudo mv raflean raflean-ui /usr/local/bin/
+```
+
+Bun cross-compiles to any target via `--target=bun-<os>-<arch>`:
+`bun-darwin-arm64`, `bun-darwin-x64`, `bun-linux-x64`, `bun-linux-arm64`, `bun-windows-x64`.
 
 ## What it scans
 
