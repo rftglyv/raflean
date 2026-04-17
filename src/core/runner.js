@@ -1,12 +1,7 @@
-import { rm, runCmd } from './shell.js';
+import { rm, runCmd, exists, dirSizeAsync } from './shell.js';
 
 /**
  * Runs every cleaner's scan() in parallel-ish, emitting progress.
- * Each cleaner may return an array of items, or null/undefined if not applicable.
- *
- * Item shape:
- *   { id, cleanerId, cleanerLabel, label, bytes, risk, description?,
- *     path? OR paths? OR command?, postCommand?, sudo? }
  *
  * onEvent({ type, ... }):
  *   { type: 'cleaner-start', cleanerId, label }
@@ -48,6 +43,16 @@ export async function scanAll(cleaners, onEvent = () => {}) {
   return all;
 }
 
+// Delete a path and return how many bytes actually disappeared.
+// Tolerant: permission / lock errors on individual files don't fail the whole op.
+async function deleteAndMeasure(path) {
+  if (!exists(path)) return 0;
+  const before = await dirSizeAsync(path);
+  rm(path);
+  const after = exists(path) ? await dirSizeAsync(path) : 0;
+  return Math.max(0, before - after);
+}
+
 /**
  * Cleans the given items. Respects { dryRun }.
  *
@@ -66,22 +71,27 @@ export async function cleanItems(items, { dryRun = false, onEvent = () => {} } =
       if (dryRun) {
         freed = item.bytes || 0;
       } else {
+        const paths = item.paths || (item.path ? [item.path] : []);
+        let anyTouched = false;
+        let pathsFreed = 0;
+        for (const p of paths) {
+          const delta = await deleteAndMeasure(p);
+          if (delta > 0) { anyTouched = true; pathsFreed += delta; }
+        }
+        freed += pathsFreed;
+
         if (item.command) {
-          ok = runCmd(item.command);
-          if (ok) freed += item.bytes || 0;
-        }
-        if (item.path) {
-          if (rm(item.path)) freed += item.bytes || 0;
-          else ok = false;
-        }
-        if (item.paths && item.paths.length > 0) {
-          let anyRemoved = false;
-          for (const p of item.paths) {
-            if (rm(p)) anyRemoved = true;
+          const cmdOk = runCmd(item.command);
+          if (cmdOk) {
+            if (paths.length === 0) { freed += item.bytes || 0; }
+            anyTouched = anyTouched || cmdOk;
+          } else if (!anyTouched) {
+            ok = false;
           }
-          if (anyRemoved) freed += item.bytes || 0;
-          else ok = false;
+        } else if (paths.length > 0 && !anyTouched) {
+          ok = false;
         }
+
         if (item.postCommand) runCmd(item.postCommand);
       }
     } catch {

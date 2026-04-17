@@ -117,8 +117,10 @@ export function diskUsage() {
   if (!raw) return null;
   const parts = raw.split(/\s+/);
   const total = parseInt(parts[1], 10) * 1024;
-  const used = parseInt(parts[2], 10) * 1024;
-  const free = parseInt(parts[3], 10) * 1024;
-  if (!Number.isFinite(total)) return null;
+  const free  = parseInt(parts[3], 10) * 1024;
+  // df's "Used" column on macOS APFS undercounts (reports only committed boot
+  // volume bytes). Compute used from total - free for a realistic number.
+  const used = total - free;
+  if (!Number.isFinite(total) || !Number.isFinite(free)) return null;
   return { total, used, free };
 }
