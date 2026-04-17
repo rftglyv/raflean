@@ -51,10 +51,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Bun is needed because prepublishOnly → npm test → bun test
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Node 24 ships npm 11+, which is required for Trusted Publishing.
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
+
+      - run: bun install --frozen-lockfile || bun install
 
       # No NPM_TOKEN — auth via OIDC Trusted Publishing.
       # Configure once at https://www.npmjs.com/package/raflean/access
