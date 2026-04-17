@@ -1,5 +1,9 @@
 # raflean
 
+[![npm](https://img.shields.io/npm/v/raflean?color=cb3837&label=npm)](https://www.npmjs.com/package/raflean)
+[![license](https://img.shields.io/npm/l/raflean?color=blue)](./LICENSE)
+[![downloads](https://img.shields.io/npm/dm/raflean?color=7aa2f7)](https://www.npmjs.com/package/raflean)
+
 > Universal storage cleaner for developers. One command, reclaim gigabytes from every dev-tool cache on your machine.
 
 ```
