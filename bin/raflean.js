@@ -168,6 +168,7 @@ async function cmdClean() {
   }
 
   console.log();
+  const results = [];
   const { totalFreed } = await cleanItems(toClean, {
     dryRun: isDryRun,
     onEvent: (ev) => {
@@ -178,12 +179,45 @@ async function cmdClean() {
         const mark = ev.ok ? c.green + '✓' : c.red + '✗';
         const freed = isDryRun ? c.gray + '(dry-run) ' + c.reset : '';
         console.log(`  ${mark}${c.reset} ${ev.item.label.padEnd(45).slice(0, 45)}  ${freed}${formatBytes(ev.freed)}`);
+        results.push(ev);
       }
     },
   });
 
+  // Final summary — grouped by cleaner
+  const succeeded = results.filter((r) => r.ok);
+  const failed = results.filter((r) => !r.ok);
   const label = isDryRun ? 'Would free' : 'Freed';
-  console.log(`\n  ${c.bold}${c.green}✨ ${label}: ${formatBytes(totalFreed)}${c.reset}\n`);
+  const divider = '─'.repeat(62);
+
+  console.log(`\n  ${c.gray}${divider}${c.reset}`);
+  console.log(`  ${c.bold}${c.green}✨ ${label}: ${formatBytes(totalFreed)}${c.reset}  ${c.gray}(${succeeded.length} item${succeeded.length === 1 ? '' : 's'}${failed.length ? `, ${c.red}${failed.length} failed${c.reset}${c.gray}` : ''})${c.reset}`);
+
+  if (succeeded.length > 0) {
+    const byCleaner = new Map();
+    for (const r of succeeded) {
+      const key = r.item.cleanerLabel || 'Other';
+      if (!byCleaner.has(key)) byCleaner.set(key, []);
+      byCleaner.get(key).push(r);
+    }
+    for (const [cleaner, rs] of byCleaner) {
+      const total = rs.reduce((s, r) => s + (r.freed || 0), 0);
+      console.log(`\n  ${c.bold}${c.blue}${cleaner}${c.reset}  ${c.gray}(${formatBytes(total)})${c.reset}`);
+      for (const r of rs) {
+        const name = (r.item.label || '').padEnd(42).slice(0, 42);
+        console.log(`    ${c.green}✓${c.reset} ${c.gray}${name}${c.reset}  ${formatBytes(r.freed).padStart(10)}`);
+      }
+    }
+  }
+
+  if (failed.length > 0) {
+    console.log(`\n  ${c.red}${c.bold}${failed.length} item${failed.length === 1 ? '' : 's'} failed:${c.reset}`);
+    for (const r of failed) {
+      console.log(`    ${c.red}✗${c.reset} ${r.item.label}`);
+    }
+  }
+
+  console.log();
 }
 
 function showHelp() {

@@ -1,4 +1,5 @@
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { HOME } from '../platform.js';
 import { dirSizeAsync, exists, walk } from '../shell.js';
 
@@ -8,7 +9,6 @@ const BUILD_DIRS = new Set([
   '.svelte-kit', '.remix', '.astro', '.vercel', '.parcel-cache',
   'build', '.expo', '.docusaurus', '.angular',
 ]);
-// Rust / misc
 const ARTIFACT_NAMES = new Set([...BUILD_DIRS, 'target']);
 
 const CANDIDATE_DIRS = [
@@ -22,6 +22,21 @@ function projectRoots() {
     .filter(exists);
 }
 
+// Protect the node_modules of the currently-running raflean install, and
+// the cwd's own node_modules. Prevents raflean from deleting its own deps
+// or the deps of the project the user is invoking it from.
+function protectedPathsNodeModules() {
+  const prot = new Set();
+  const marker = `${sep}node_modules${sep}`;
+  try {
+    const selfPath = fileURLToPath(import.meta.url);
+    const idx = selfPath.indexOf(marker);
+    if (idx !== -1) prot.add(selfPath.slice(0, idx + marker.length - 1));
+  } catch { /* non-file URL */ }
+  prot.add(join(process.cwd(), 'node_modules'));
+  return prot;
+}
+
 export default {
   id: 'projects',
   label: 'Project directories',
@@ -33,6 +48,7 @@ export default {
     const roots = projectRoots();
     if (roots.length === 0) return items;
 
+    const protectedPaths = protectedPathsNodeModules();
     const allNodeModules = new Set();
     const allBuilds = new Set();
 
@@ -42,6 +58,7 @@ export default {
         skipNames: ['Library', 'Applications'],
         match: (name) => name === NODE_MODULES,
       })) {
+        if (protectedPaths.has(p)) continue;
         allNodeModules.add(p);
       }
       for (const p of walk(root, {

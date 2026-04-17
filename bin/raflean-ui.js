@@ -252,7 +252,7 @@ function ResultsScreen({ items, onStartClean, onQuit }) {
   const start = Math.max(0, Math.min(cursor - Math.floor(WINDOW / 2), flatIndex.length - WINDOW));
   const end = Math.min(flatIndex.length, start + WINDOW);
 
-  // Build the visible list, but keep group headers.
+  // Build the visible list, keeping per-cleaner group headers.
   const rows = [];
   let lastCleaner = null;
   for (let i = start; i < end; i++) {
@@ -348,12 +348,23 @@ function ResultsScreen({ items, onStartClean, onQuit }) {
 
 function ConfirmScreen({ items, dryRun, onConfirm, onCancel }) {
   const total = items.reduce((s, i) => s + (i.bytes || 0), 0);
-  const careful = items.filter((i) => i.risk === 'careful');
 
   useInput((input, key) => {
     if (key.return) onConfirm();
     if (key.escape || input === 'q' || input === 'n') onCancel();
   });
+
+  // Group items by risk tier for the review list.
+  const RISK_ORDER = ['safe', 'moderate', 'careful'];
+  const RISK_LABEL = { safe: 'SAFE', moderate: 'MODERATE', careful: 'CAREFUL' };
+  const byRisk = new Map(RISK_ORDER.map((r) => [r, []]));
+  for (const it of items) {
+    const risk = it.risk || 'safe';
+    if (!byRisk.has(risk)) byRisk.set(risk, []);
+    byRisk.get(risk).push(it);
+  }
+  for (const rs of byRisk.values()) rs.sort((a, b) => (b.bytes || 0) - (a.bytes || 0));
+  const careful = byRisk.get('careful') || [];
 
   return h(Box, { flexDirection: 'column', marginTop: 1 },
     h(Text, { bold: true, color: dryRun ? 'yellow' : 'cyan' },
@@ -367,15 +378,29 @@ function ConfirmScreen({ items, dryRun, onConfirm, onCancel }) {
       h(Text, null, ' — freeing '),
       h(SizeText, { bytes: total }),
     ),
-    careful.length > 0 && h(Box, { marginTop: 1, flexDirection: 'column' },
-      h(Text, { color: 'red', bold: true }, `  ⚠  Includes ${careful.length} "careful" item${careful.length === 1 ? '' : 's'}:`),
-      ...careful.slice(0, 5).map((it, i) =>
-        h(Box, { key: `c-${i}` },
-          h(Text, { color: 'red' }, '     • '),
-          h(Text, null, it.label),
+    ...RISK_ORDER.filter((r) => (byRisk.get(r) || []).length > 0).map((risk) => {
+      const rs = byRisk.get(risk);
+      const groupTotal = rs.reduce((s, it) => s + (it.bytes || 0), 0);
+      return h(Box, { key: `g-${risk}`, flexDirection: 'column', marginTop: 1 },
+        h(Box, null,
+          h(Text, { color: RISK_COLOR[risk] || 'gray', bold: true }, `  ${RISK_LABEL[risk]}`),
+          h(Text, { color: 'gray' }, `   ${rs.length} item${rs.length === 1 ? '' : 's'}  (${formatBytes(groupTotal)})`),
         ),
-      ),
-      careful.length > 5 && h(Text, { color: 'red' }, `     … and ${careful.length - 5} more`),
+        ...rs.map((it, i) =>
+          h(Box, { key: `it-${risk}-${i}` },
+            h(Text, { color: RISK_COLOR[risk] || 'gray' }, '    • '),
+            h(Text, null, (it.label || '').padEnd(40).slice(0, 40)),
+            h(Text, { color: 'gray' }, '  '),
+            h(Text, { color: 'gray' }, (it.cleanerLabel || '').padEnd(16).slice(0, 16)),
+            h(Text, null, '  '),
+            h(SizeText, { bytes: it.bytes || 0, width: 10 }),
+          ),
+        ),
+      );
+    }),
+    careful.length > 0 && h(Box, { marginTop: 1 },
+      h(Text, { color: 'red', bold: true }, '  ⚠  '),
+      h(Text, { color: 'red' }, `${careful.length} careful item${careful.length === 1 ? '' : 's'} selected — review the list above before proceeding.`),
     ),
     dryRun && h(Box, { marginTop: 1 },
       h(Text, { color: 'yellow' }, '  [DRY-RUN MODE] '),
@@ -396,6 +421,8 @@ function ConfirmScreen({ items, dryRun, onConfirm, onCancel }) {
 function CleanScreen({ items, dryRun, onDone }) {
   const [progress, setProgress] = useState({ index: 0, current: null, results: [], freed: 0 });
   const started = useRef(false);
+  const latestResults = useRef([]);
+  const latestFreed = useRef(0);
 
   useEffect(() => {
     if (started.current) return;
@@ -407,16 +434,18 @@ function CleanScreen({ items, dryRun, onDone }) {
           if (ev.type === 'item-start') {
             setProgress((p) => ({ ...p, current: ev.item }));
           } else if (ev.type === 'item-done') {
+            latestResults.current = [...latestResults.current, { item: ev.item, freed: ev.freed, ok: ev.ok }];
+            latestFreed.current += (ev.freed || 0);
             setProgress((p) => ({
               index: p.index + 1,
               current: null,
-              freed: p.freed + (ev.freed || 0),
-              results: [...p.results, { item: ev.item, freed: ev.freed, ok: ev.ok }],
+              freed: latestFreed.current,
+              results: latestResults.current,
             }));
           }
         },
       });
-      setTimeout(onDone, 300);
+      setTimeout(() => onDone(latestResults.current, latestFreed.current), 300);
     })();
   }, []);
 
@@ -452,13 +481,57 @@ function CleanScreen({ items, dryRun, onDone }) {
 
 // ─── Done screen ──────────────────────────────────────────────────────────────
 
-function DoneScreen({ freed, dryRun, onExit }) {
+function DoneScreen({ results, freed, dryRun, onExit }) {
   useInput((input, key) => { if (key.escape || key.return || input === 'q') onExit(); });
+
+  const succeeded = results.filter((r) => r.ok);
+  const failed = results.filter((r) => !r.ok);
+
+  // Group succeeded results by risk tier
+  const RISK_ORDER = ['safe', 'moderate', 'careful'];
+  const RISK_LABEL = { safe: 'SAFE', moderate: 'MODERATE', careful: 'CAREFUL' };
+  const byRisk = new Map(RISK_ORDER.map((r) => [r, []]));
+  for (const r of succeeded) {
+    const risk = r.item.risk || 'safe';
+    if (!byRisk.has(risk)) byRisk.set(risk, []);
+    byRisk.get(risk).push(r);
+  }
+
   return h(Box, { flexDirection: 'column', marginTop: 1 },
     h(Box, null,
       h(Text, { color: 'green', bold: true }, '  ✨ '),
       h(Text, { bold: true }, dryRun ? 'Would free: ' : 'Freed: '),
       h(SizeText, { bytes: freed }),
+      h(Text, { color: 'gray' }, `   (${succeeded.length} item${succeeded.length === 1 ? '' : 's'}${failed.length ? `, ${failed.length} failed` : ''})`),
+    ),
+    ...RISK_ORDER.filter((r) => (byRisk.get(r) || []).length > 0).map((risk) => {
+      const rs = byRisk.get(risk);
+      const groupTotal = rs.reduce((s, r) => s + (r.freed || 0), 0);
+      return h(Box, { key: `g-${risk}`, flexDirection: 'column', marginTop: 1 },
+        h(Box, null,
+          h(Text, { color: RISK_COLOR[risk] || 'gray', bold: true }, `  ${RISK_LABEL[risk]}`),
+          h(Text, { color: 'gray' }, `  (${formatBytes(groupTotal)})`),
+        ),
+        ...rs.map((r, i) =>
+          h(Box, { key: `r-${risk}-${i}` },
+            h(Text, { color: 'green' }, '    ✓ '),
+            h(Text, null, (r.item.label || '').padEnd(40).slice(0, 40)),
+            h(Text, { color: 'gray' }, '  '),
+            h(Text, { color: 'gray' }, (r.item.cleanerLabel || '').padEnd(16).slice(0, 16)),
+            h(Text, null, '  '),
+            h(SizeText, { bytes: r.freed, width: 10 }),
+          ),
+        ),
+      );
+    }),
+    failed.length > 0 && h(Box, { flexDirection: 'column', marginTop: 1 },
+      h(Text, { color: 'red', bold: true }, `  ${failed.length} item${failed.length === 1 ? '' : 's'} failed:`),
+      ...failed.map((r, i) =>
+        h(Box, { key: `f-${i}` },
+          h(Text, { color: 'red' }, '    ✗ '),
+          h(Text, null, r.item.label),
+        ),
+      ),
     ),
     h(Newline),
     h(Text, { color: 'gray' }, '  Press ⏎ / q to exit.'),
@@ -473,6 +546,7 @@ function App() {
   const [items, setItems] = useState([]);
   const [clean, setClean] = useState(null);
   const [freed, setFreed] = useState(0);
+  const [results, setResults] = useState([]);
 
   return h(Box, { flexDirection: 'column', paddingY: 1 },
     h(Banner),
@@ -499,13 +573,14 @@ function App() {
     screen === 'cleaning' && clean && h(CleanScreen, {
       items: clean.picks,
       dryRun: clean.dryRun,
-      onDone: () => {
-        const total = clean.picks.reduce((s, i) => s + (i.bytes || 0), 0);
-        setFreed(total);
+      onDone: (finalResults, finalFreed) => {
+        setResults(finalResults);
+        setFreed(finalFreed);
         setScreen('done');
       },
     }),
     screen === 'done' && h(DoneScreen, {
+      results,
       freed,
       dryRun: clean?.dryRun,
       onExit: () => exit(),
